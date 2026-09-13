@@ -1,0 +1,33 @@
+services:
+  backend:
+    build: ./backend
+    container_name: review-gen-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    volumes:
+      # SQLite DB 영속화 — 컨테이너 재생성해도 데이터 유지
+      - ./data:/app/data
+    # 외부에 백엔드 포트 노출 안 함 (nginx 프록시만 통해 접근)
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    container_name: review-gen-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    environment:
+      # 프로젝트 루트 .env 에서 읽음 (없으면 compose 실행 자체가 실패)
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?루트 .env에 BASIC_AUTH_USER 설정 필요}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:?루트 .env에 BASIC_AUTH_PASSWORD 설정 필요}
+    depends_on:
+      backend:
+        condition: service_healthy
